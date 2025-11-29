@@ -11,7 +11,20 @@ pub mod nft_marketplace {
     use super::*;
 
     // 1.  Initialize marketplace
-    
+
+    pub fn initialize_marketplace(ctx: Context<InitializeMarketPlace>, 
+        fee_percentage: u16 // basis points (100 = 1%)
+    ) -> Result<()> {
+        let marketplace = &mut ctx.accounts.marketplace;
+        marketplace.authority = ctx.accounts.authority.key();
+        marketplace.fee_percentage = fee_percentage;
+        marketplace.total_sales = 0;
+        marketplace.bump = ctx.bumps.marketplace;
+        
+        msg!("Marketplace initialized with {}% fees", fee_percentage);
+        Ok(())
+    }
+
 
     // 2. Mint NFT with Metadata
 
@@ -23,9 +36,25 @@ pub mod nft_marketplace {
 
 }
 
+// CONTEXT [ACCOUNT VALIDATIONS]
 
 #[derive(Accounts)]
-pub struct Initialize {}
+pub struct InitializeMarketPlace<'info> {
+    #[account(
+        init,
+        payer = authority,
+        space = 8 + Marketplace::INIT_SPACE,
+        seeds = [b"marketplace"],
+        bump,
+    )]
+    pub marketplace: Account<'info, MarketPlace>,
+
+    #[account(mut)]
+    pub authority: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
+}
+
 
 
 
