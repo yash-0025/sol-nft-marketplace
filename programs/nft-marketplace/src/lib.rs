@@ -28,6 +28,63 @@ pub mod nft_marketplace {
 
     // 2. Mint NFT with Metadata
 
+    pub fn mint_nft(ctx: Context<MintNFT>,
+        metadata_uri: String,
+        name: String,
+        symbol: String,
+    ) -> Result<()> {
+        // Mint 1 token to the user's token account
+        let cpi_accounts = MintTo {
+            mint: ctx.accounts.mint.to_account_info(),
+            to: ctx.accounts.token_account.to_account_info(),
+            authority: ctx.accounts.payer.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        token::mint_to(cpi_ctx, 1)?;
+
+        // Creating Metadata Account
+        let data_v2 = DataV2 {
+            name: name.clone(),
+            symbol: symbol.clone(),
+            seller_fee_basis_points: 500,
+            creators: some(vec![
+                mpl_token_metadata::types::Creator{
+                    address: ctx.accounts.payer.key(),
+                    verified: true,
+                    share: 100,
+                }
+            ]),
+            collection: None,
+            uses: None,
+        };
+
+        let cpi_accounts = CreateMetadataAccountsV3{
+            metadata: ctx.accounts.metadata.to_account_info(),
+            mint: ctx.accounts.to_account_info(),
+            mint_authority:ctx.accounts.payer.to_account_info(),
+            update_authority: ctx.accounts.payer.to_account_info(),
+            payer: ctx.accounts.payer.to_account_info(),
+            system_program: ctx.accounts.system_program.to_account_info(),
+            rent: ctx.accounts.rent.to_account_info(),
+        };
+
+        let cpi_program = ctx.accounts.token_metadata_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+
+        create_metadata_accounts_v3(
+            cpi_ctx,
+            data_v2,
+            true,
+            true,
+            None,
+        );
+        msg!("NFT minted: {} ({})", name, symbol);
+        Ok(())
+    }
+
     // 3. List NFT for sale
 
     // 4. Buy NFT from listings
@@ -55,6 +112,37 @@ pub struct InitializeMarketPlace<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct MintNFT<'info> {
+    #[account(
+        init,
+        payer = payer,
+        mint::decimals = 0,
+        mint::authority = payer,
+        mint::freeze_authority = payer,
+    )]
+    pub mint: Account<'info, Mint>,
+
+    #[account(mut)]
+    pub metadata: UncheckedAccount<'info>,
+
+    #[account(
+        init_if_needed,
+        payer = payer,
+        associated_token::mint = mint,
+        associated_token::authority = payer,
+    )]
+    pub token_account: Account<'info, TokenAccount>,
+
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    pub rent: Sysvar<'info, Rent>,
+    pub system_program: Program<'info, System>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+
+    pub token_metadata_program: UncheckedAccount<'info>,
+}
 
 
 
